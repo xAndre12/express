@@ -1,0 +1,108 @@
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  font-family: sans-serif;
+}
+body {
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+}
+header {
+  width: 100%;
+  height: 80px;
+  overflow: hidden;
+  /* border: solid black; */
+  align-items: center;
+  justify-content: center;
+  display: flex;
+  background-color: #30302f;
+}
+.text{
+    font-size: 65px;
+    font-weight: 400;
+    color: white;
+    text-shadow: 2px 2px 0 rgb(0, 217, 255);
+    user-select: none;
+}
+button {
+    border: none;
+    padding: 14px 0;
+    width: 200px;
+    border-radius: 10px;
+    font-size: 18px;
+    cursor: pointer;
+    color:white;
+    font-weight: 600;
+}
+.login {
+    background-color: rgb(107, 187, 107);
+}
+.switch-page {
+    background-color: rgb(209, 110, 110);
+}
+input {
+    padding: 20px;
+    width: 300px;
+    border: none;
+    border-radius: 10px;
+}
+input:last-of-type {
+    margin-bottom: 40px;
+}
+/* .password {
+    border-radius: 30px;
+    height: 40px;
+    width: 200px;
+    cursor: pointer;
+    text-align: center;
+}
+.email{
+    border-radius: 30px;
+    height: 40px;
+    width: 200px;
+    cursor: pointer;
+    text-align: center;
+} */
+.buttons{
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    /* border: solid red; */
+    gap:25px;
+    background-color: #30302f;
+}
+.username{
+    display: none;
+}
+.error {
+    color:coral;
+    font-weight: 400;
+    display: none;
+}
+.overlay{
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 30px;
+    position: absolute;
+    width: 100%;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+.overlay p{
+    background-color: white;
+    padding: 80px 40px;
+    width: 400px;
+    border-radius: 20px;
+    text-align: center;
+    font-size: 28px;
+}
+.overlay button{
+    background-color: rgb(250, 90, 90);
+}
