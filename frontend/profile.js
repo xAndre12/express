@@ -4,17 +4,218 @@ const title = document.querySelector(".title")
 const userContent = document.querySelector(".user-content")
 const createUser = document.querySelector(".createUser")
 const chatWrapper = document.querySelector(".chat-wrapper")
+const paymentWrapper = document.querySelector(".pay-button-wrapper")
 const closeChat = document.querySelector(".close-chat")
 const sendChat = document.querySelector(".send-chat")
 const chatInput = document.querySelector(".chat-input")
 const textBox = document.querySelector(".text-box")
 const chatTranscript = document.querySelector(".chat-transcript")
 
+let firstMessage = true
 let editing = 0
 let token = ''
 let user = {}
+let conversationId = ''
+let payed = false
 
-const createNewUser = async (email, password, username) => {
+const verifyDate = (userDate, currentDate) => {
+    if (userDate === currentDate) {
+        return true
+    }
+    else {
+        return false
+    }
+}
+
+
+
+window.addEventListener('load', async () => {
+
+    const params = new URLSearchParams(document.location.search);
+    const sessionId = params.get("session_id")
+
+    // chatWrapper.style.display = "block";
+    token = localStorage.getItem('token')
+
+    if (!token) {
+        window.location.href = '/frontend/login.html';
+        return;
+    }
+    const response = await fetch("http://localhost:3000/profile", {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+    const data = await response;
+
+    user = await data.json();
+    console.log(user)
+    if (user.payment === "paid") {
+        chatWrapper.style.display = "block";
+
+
+        const subscriptionInterval = setInterval(async () => {
+            const now = new Date();
+
+            const currentDate = now.toLocaleString('en-US', {
+                month: 'long',
+                year: 'numeric'
+            }).toLowerCase().replace(' ', '-');
+            console.log(verifyDate(user.createdAt, currentDate))
+
+            if (verifyDate(user.createdAt, currentDate) === false) {
+                clearInterval(subscriptionInterval);
+                const request = await fetch("http://localhost:3000/user-payment", {
+                    method: "PUT",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        payment: "unpaid",
+                        createdAt: "undefined"
+                    })
+                })
+                const response = await request.json();
+
+                if (response.status == "success") {
+                    window.location.reload()
+                }
+                console.log(response)
+            }
+        }, 60000);
+    }
+    else {
+        paymentWrapper.style.display = "flex";
+    }
+
+    if (sessionId) {
+        console.log("apelez API")
+        const now = new Date();
+
+        const currentDate = now.toLocaleString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        }).toLowerCase().replace(' ', '-');
+
+        const request = await fetch(`http://localhost:3000/validate-payment/${sessionId}`, {
+            method: "GET",
+        })
+        const res = await request.json();
+
+        if (res.payment_status === 'paid') {
+            const request = await fetch(`http://localhost:3000/user-payment`, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: user.id,
+                    payment: "paid",
+                    createdAt: currentDate
+                })
+            })
+            const response = await request.json();
+
+            if (response.status === 'success') {
+                chatWrapper.style.display = "block";
+                paymentWrapper.style.display = "none";
+            }
+        }
+    }
+
+    if (data?.status == 400) {
+        localStorage.removeItem("token")
+        window.location.href = "/frontend/login.html"
+    }
+
+    const groupedchats = await fetch("http://localhost:3000/user-conversation/null", {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+    const raspuns = await groupedchats
+    const userGroupedConversations = await raspuns.json();
+
+    if (raspuns?.status === 200) {
+        userGroupedConversations.reverse().forEach((item) => {
+
+            const conversationWrapper = document.createElement("div")
+
+            conversationWrapper.classList.add("conversation-wrapper");
+
+            conversationWrapper.innerHTML = item.chats[0].message_send;
+
+            conversationWrapper.addEventListener('click', () => {
+                conversationWrapper.classList.toggle("active")
+                conversationWrapper.innerHTML = ''
+
+                if (conversationWrapper.classList.value.includes('active')) {
+                    const chatConversation = document.createElement("div");
+                    chatConversation.classList.add("chat-transcript");
+
+                    item.chats.forEach((itemChat) => {
+
+                        const p1 = document.createElement("p")
+                        const p2 = document.createElement("p")
+
+                        p1.innerHTML = itemChat.message_send
+                        p2.innerHTML = itemChat.message_response
+
+                        chatConversation.appendChild(p1)
+                        chatConversation.appendChild(p2)
+                    });
+
+                    conversationWrapper.appendChild(chatConversation)
+
+                } else {
+                    conversationWrapper.innerHTML = item.chats[0].message_send;
+                }
+            })
+
+            userContent.appendChild(conversationWrapper)
+        })
+        role.innerHTML = user.role
+
+        if (user.role === "admin") {
+            const ul = document.createElement('ul');
+            createUser.style.display = "block"
+            createUserList(ul);
+
+            createUser.addEventListener("click", () => {
+                userContent.innerHTML = "";
+                userContent.appendChild(createUserForm(ul))
+            })
+
+            chatWrapper.style.display = "none";
+        }
+    }
+
+    if (data?.status == 200) {
+        title.innerHTML = "Welcome back," + user.username
+
+        role.innerHTML = user.role
+        if (user.role === "admin") {
+            const ul = document.createElement('ul');
+            createUser.style.display = "block"
+            createUserList(ul);
+
+            createUser.addEventListener("click", () => {
+                userContent.innerHTML = "";
+                userContent.appendChild(createUserForm(ul))
+            })
+        }
+    }
+
+});
+
+const createNewUser = async (username, email, password) => {
     const response = await fetch("http://localhost:3000/sign-up", {
         method: "POST",
         headers: {
@@ -42,8 +243,17 @@ const createUserList = async (ul) => {
     const response = await users.json()
 
     const usersList = response.filter((item) => item.role !== 'admin');
-    console.log(usersList)
+
+    const req = await fetch(`http://localhost:3000/all-users-conversations`, {
+        method: "GET",
+        headers: {
+            "authorization": `Bearer ${token}`
+        }
+    })
+    const conversationList = await req.json();
+
     for (let index = 0; index < usersList.length; index++) {
+
         const li = document.createElement("li")
 
         const userInfo = document.createElement('div')
@@ -74,8 +284,17 @@ const createUserList = async (ul) => {
         deleteButton.classList.add("delete")
         deleteButton.textContent = "Delete"
 
+        const conversationsButton = document.createElement("button")
+        conversationsButton.classList.add("delete")
+        conversationsButton.textContent = "Convs. DEL"
+
+        const showConversationsButton = document.createElement("button")
+        showConversationsButton.classList.add("show-conversations")
+        showConversationsButton.textContent = "Show Conv."
+
         deleteButton.addEventListener("click", async () => {
-            const req = await fetch(`http://localhost:3000/delete-user/${usersList[index]._id}`, {
+
+            const req = await fetch(`http://localhost:3000/delete-user/${usersList[index]._id}/${usersList[index].id}`, {
                 method: "DELETE",
                 headers: {
                     "Authorization": `Bearer ${token}`
@@ -86,8 +305,93 @@ const createUserList = async (ul) => {
             if (res) window.location.reload();
         })
 
+        let conversationShown = false;
+
+        showConversationsButton.addEventListener("click", async () => {
+
+            if (conversationShown === false) {
+
+                const req = await fetch(
+                    `http://localhost:3000/user-conversation/${usersList[index].id}`,
+                    {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    }
+                );
+
+                const res = await req.json();
+
+                showConversationsButton.innerHTML = "Hide";
+                conversationShown = true;
+
+                if (res?.length) {
+                    res.forEach(groupedchats => {
+                        const div = document.createElement("div");
+                        div.style.display = "flex";
+                        div.style.justifyContent = "space-between";
+                        div.classList.add("conversation-wrapper");
+
+                        const primulMesaj = groupedchats.chats[0].message_send || "empty";
+
+                        const deleteSingleConversation = document.createElement("button");
+                        deleteSingleConversation.classList.add("delete-single");
+                        deleteSingleConversation.innerHTML = "delete";
+
+                        deleteSingleConversation.addEventListener("click", async () => {
+                            console.log(groupedchats.chats[0].conversation_id);
+
+                            const req = await fetch(`http://localhost:3000/delete-single-conversation/${groupedchats.chats[0].conversation_id}`, {
+                                method: "DELETE",
+                                headers: {
+                                    "Authorization": `Bearer ${token}`
+                                }
+                            })
+                            const res = await req.json();
+                        })
+
+                        div.textContent = primulMesaj;
+                        div.appendChild(deleteSingleConversation)
+
+                        userInfo.appendChild(div);
+
+                    });
+                }
+            } else {
+                conversationShown = false;
+                showConversationsButton.innerHTML = "Show Conv.";
+                const conversationsUser = document.querySelectorAll('.conversation-wrapper')
+                conversationsUser.forEach(element => {
+                    userInfo.removeChild(element);
+                });
+            }
+        });
+
+        conversationsButton.addEventListener("click", async () => {
+            const req = await fetch(`http://localhost:3000/conversations-delete/${usersList[index].id}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            })
+            const res = await req.json();
+
+            if (res) window.location.reload();
+        })
+
+
+        const hasConversation = conversationList.find((value) => {
+            return value.user_id === usersList[index].id
+        })
+
         buttonsWrapper.appendChild(editButton)
         buttonsWrapper.appendChild(deleteButton)
+
+        if (hasConversation) {
+            buttonsWrapper.appendChild(conversationsButton)
+            buttonsWrapper.appendChild(showConversationsButton)
+        }
 
         userInfo.appendChild(p)
         userInfo.appendChild(buttonsWrapper)
@@ -100,6 +404,7 @@ const createUserList = async (ul) => {
     userContent.innerHTML = "";
     userContent.appendChild(ul);
 }
+
 const createEditUser = (li, username, password, email, index) => {
     const editWrapper = document.createElement("div")
     editWrapper.classList.add("edit-wrapper")
@@ -122,6 +427,7 @@ const createEditUser = (li, username, password, email, index) => {
     const updateButton = document.createElement("button")
     updateButton.classList.add("update")
     updateButton.textContent = "Update"
+
 
     updateButton.addEventListener("click", async () => {
         let newUser = {
@@ -211,9 +517,10 @@ const createUserForm = (li) => {
 
     createButton.addEventListener("click", async () => {
 
-
         if (createUsername.value && createEmail.value && createPassword.value) {
-            const create = await createNewUser(createUsername.value, createEmail.value, createPassword.value)
+
+            await createNewUser(createUsername.value, createEmail.value, createPassword.value)
+
             const ul = document.createElement('ul');
             createUserList(ul)
         } else {
@@ -250,80 +557,6 @@ const createUserForm = (li) => {
     return createWrapper
 }
 
-window.addEventListener('load', async () => {
-    token = localStorage.getItem('token')
-
-    if (!token) {
-        window.location.href = '/frontend/login.html';
-        return;
-    }
-    const response = await fetch("http://localhost:3000/profile", {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`
-        }
-    });
-    const data = await response;
-
-    user = await data.json();
-
-    if (data?.status == 400) {
-        localStorage.removeItem("token")
-        window.location.href = "/frontend/login.html"
-    }
-    if (data?.status == 200) {
-        title.innerHTML = "Welcome back," + user.username
-
-        const response = await fetch("http://localhost:3000/user-chat", {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        })
-        const chats = await response.json();
-
-        chats.forEach((item, index) => {
-            console.log(index)
-
-            const p1 = document.createElement("p")
-            const p2 = document.createElement("p")
-
-            p1.innerHTML = item.message_send
-            p2.innerHTML = item.message_response
-
-            chatTranscript.appendChild(p1)
-            chatTranscript.appendChild(p2)
-        });
-
-        console.log(chats);
-
-        const obj = {
-            test1: 'test 1',
-            test2: "test 2"
-        }
-
-        const arr = ['test 1', 'test 2']
-
-        role.innerHTML = user.role
-        if (user.role === "admin") {
-            const ul = document.createElement('ul');
-            createUser.style.display = "block"
-            createUserList(ul);
-
-            createUser.addEventListener("click", () => {
-                userContent.innerHTML = "";
-                userContent.appendChild(createUserForm(ul))
-            })
-        }
-        else {
-            // userContent.innerHTML = "lorem ipsum"
-            createUser.style.display = "none"
-        }
-    }
-
-
-});
-
 const handleLogout = async () => {
     const token = localStorage.getItem('token')
 
@@ -347,11 +580,16 @@ logout.addEventListener("click", () => {
 chatWrapper.addEventListener("click", () => {
     chatWrapper.classList.add("press");
 });
+let responding = false;
 
 closeChat.addEventListener("click", (e) => {
-    e.stopPropagation()
-    chatWrapper.classList.remove("press");
-    textBox.innerHTML = ""
+    if (responding === false) {
+        e.stopPropagation()
+        chatWrapper.classList.remove("press");
+        textBox.innerHTML = ""
+        firstMessage = true
+        chatInput.value = "";
+    }
 });
 
 const handleCallAI = async (loading, textValue) => {
@@ -391,27 +629,71 @@ const handleCallAI = async (loading, textValue) => {
             body: JSON.stringify({
                 message_send: textValue,
                 message_response: response.message.content,
-                user_id: user.id
+                user_id: user.id,
+                conversation_id: conversationId
             })
         });
 
         chatInput.value = "";
     }
+    responding = false;
 };
 
 sendChat.addEventListener("click", async () => {
-    const message = chatInput.value;
+    if (responding === false && chatInput.value !== "") {
+        responding = true;
+        if (firstMessage === true) {
+            conversationId = crypto.randomUUID();
 
-    const newMessage = document.createElement("p");
-    newMessage.textContent = message;
-    textBox.appendChild(newMessage);
+            const date = new Date();
+            const currentDate = date.toLocaleString()
 
-    const loading = document.createElement("img");
-    loading.src = "loading.gif";
-    loading.style.width = "120px";
-    loading.style.marginLeft = "auto"
-    textBox.appendChild(loading);
+            const response = await fetch("http://localhost:3000/user-conversation", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    conversation_id: conversationId,
+                    created_at: currentDate,
+                    user_id: user.id
+                })
+            })
 
-    await handleCallAI(loading, chatInput.value);
+            firstMessage = false
+        }
 
+        const message = chatInput.value;
+
+        const newMessage = document.createElement("p");
+        newMessage.textContent = message;
+        textBox.appendChild(newMessage);
+
+
+
+        const loading = document.createElement("img");
+        loading.src = "loading.gif";
+        loading.style.width = "120px";
+        loading.style.marginLeft = "auto"
+        textBox.appendChild(loading);
+
+        await handleCallAI(loading, chatInput.value);
+
+    }
 });
+
+
+paymentWrapper.querySelector('button').addEventListener("click", async () => {
+    const req = await fetch("http://localhost:3000/start-payment", {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    });
+
+    const response = await req.json()
+
+    window.location.replace(response.url);
+})

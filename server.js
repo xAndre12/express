@@ -4,6 +4,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const app = express();
+const stripe = require('stripe')
 const mongoose = require('mongoose');
 
 const PORT = 3000;
@@ -11,13 +12,16 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json())
 
+const stripeAPI = new stripe("sk_test_51UQp6xRFNGqt0pBAHByaRLq9lr0pZOEa6GKTuyPBbXMUONAqTBjUjZ8sTBh8JarVAqpyQeAkuBrftgK4xG2S6zdh00BF0SYaiJ")
 
 const UserSchema = new mongoose.Schema({
-    id: {type: String,  unique: true},
+    id: { type: String, unique: true },
     username: { type: String, require: true },
     role: { type: String, require: true },
     email: { type: String, require: true, unique: true },
-    password: { type: String, require: true }
+    password: { type: String, require: true },
+    payment: { type: String, require: true },
+    createdAt: { type: String, require: true }
 })
 
 const BlacklistSchema = new mongoose.Schema({
@@ -27,14 +31,14 @@ const BlacklistSchema = new mongoose.Schema({
 const UserChatSchema = new mongoose.Schema({
     message_send: { type: String, require: true },
     message_response: { type: String, require: true },
-    user_id: { type: String, require: true, unique: true },
-    conversation_id: { type: String, require: true, unique: true },
+    user_id: { type: String, require: true },
+    conversation_id: { type: String, require: true },
 })
 
 const UserConversationSchema = new mongoose.Schema({
     created_at: { type: String, require: true },
-    conversation_id: { type: String, require: true, unique: true },
-    user_id: { type: String, require: true, unique: true },
+    conversation_id: { type: String, require: true },
+    user_id: { type: String, require: true },
 })
 
 const User = mongoose.model("User", UserSchema);
@@ -64,7 +68,7 @@ const authentificateToken = async (req, res, next) => {
         res.status(500).json("Bad response")
     }
 
-    jwt.verify(token, JWT_SECRET, (err, value) => {
+    jwt.verify(token, JWT_SECRET, async (err, value) => {
         if (err !== null && err.toString().includes("signature")) {
             return res.status(400).json("invalid token")
         }
@@ -75,14 +79,64 @@ const authentificateToken = async (req, res, next) => {
         if (err !== null && err) {
             return res.status(400).json(err).toString()
         }
-        req.user = value;
-        next()
+        await User.find({ id: value.id }).then((userData) => {
+            req.user = { ...value, payment: userData[0]?.payment, createdAt: userData[0]?.createdAt };
+            next()
+        })
     })
 }
 
 const generateToken = (user) => {
-    return jwt.sign({ email: user.email, password: user.password, role: user.role, username: user.username, id: user.id  }, JWT_SECRET, { expiresIn: "1h" });
+    return jwt.sign({ email: user.email, password: user.password, role: user.role, username: user.username, id: user.id }, JWT_SECRET, { expiresIn: "1h" });
 }
+
+//Stripe integration
+
+app.post("/start-payment", async (req, res) => {
+    try {
+        const session = await stripeAPI.checkout.sessions.create({
+            mode: 'payment',
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'eur',
+                        product_data: { name: 'Test' },
+                        unit_amount: 1000
+                    },
+                    quantity: 1
+                }
+            ],
+            success_url: 'http://localhost:5500/frontend/profile.html?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url: 'http://localhost:5500/frontend/profile.html?canceled=true}'
+        })
+
+        res.status(200).json({ url: session.url })
+
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+
+app.get("/validate-payment/:sessionId", async (req, res) => {
+    const session_id = req.params.sessionId
+
+    try {
+        const session = await stripeAPI.checkout.sessions.retrieve(session_id);
+
+        res.status(200).json({
+            status: session.status,
+            payment_status: session.payment_status,
+            amount_total: session.amount_total,
+            currency: session.currency,
+            customer_email: session.customer_email
+        });
+
+    } catch (err) {
+        res.status(400).json({ error: err })
+    }
+})
 
 app.post("/sign-up", async (req, res) => {
     const { username, email, password } = req.body
@@ -97,8 +151,15 @@ app.post("/sign-up", async (req, res) => {
             return res.status(400).json("email already exist")
         }
 
+        const now = new Date();
+
+        const currentDate = now.toLocaleString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        }).toLowerCase().replace(' ', '-');
+
         const userId = uuid.v4();
-        const newUser = await User.create({ email, password, username, role: 'user', id: userId })
+        const newUser = await User.create({ email, password, username, role: 'user', id: userId, payment: 'paid', createdAt: currentDate  })
         const token = generateToken(newUser)
 
         res.status(200).json(`user created ${token}`)
@@ -151,10 +212,35 @@ app.put('/users/:id', authentificateToken, async (req, res) => {
 
 })
 
-app.delete("/delete-user/:id", authentificateToken, async (req, res) => {
+app.delete("/delete-user/:id/:userId", authentificateToken, async (req, res) => {
+
     const id = req.params.id;
+    const userId = req.params.userId
+
     await User.deleteOne({
         _id: id
+    })
+
+    await UserConversation.deleteMany({
+        user_id: userId
+    })
+
+    await UserChat.deleteMany({
+        user_id: userId
+
+    })
+
+    res.status(200).json(true)
+})
+
+app.delete("/conversations-delete/:userId", authentificateToken, async (req, res) => {
+    const userId = req.params.userId
+
+    await UserConversation.deleteMany({
+        user_id: userId
+    })
+    await UserChat.deleteMany({
+        user_id: userId
     })
     res.status(200).json(true)
 })
@@ -162,24 +248,23 @@ app.delete("/delete-user/:id", authentificateToken, async (req, res) => {
 app.post("/user-chat", authentificateToken, async (req, res) => {
     const { message_send, message_response, user_id, conversation_id } = req.body
 
-    if (message_send === undefined || message_response === undefined || user_id === undefined) {
+    if (message_send === undefined || message_response === undefined || user_id === undefined || conversation_id === undefined) {
         return res.status(400).json("All fields are required")
     }
 
     try {
-       await UserChat.create({ message_send, message_response, user_id })
-       return res.status(200).json({
+        await UserChat.create({ message_send, message_response, user_id, conversation_id })
+        return res.status(200).json({
             created: true
-       })
+        })
     }
-    catch (err) { res.status(500).json("Something went wrong", err) }
-});
-
-app.get("/user-chat", authentificateToken, async (req, res) => {
-    const chats = await UserChat.find({
-        user_id: req.user.id
-    });
-    res.status(200).json(chats);
+    catch (err) {
+        return res.status(500).json({
+            message: err.message,
+            code: err.code,
+            keyValue: err.keyValue
+        });
+    }
 });
 
 
@@ -191,21 +276,77 @@ app.post("/user-conversation", authentificateToken, async (req, res) => {
     }
 
     try {
-       await UserConversation.create({ conversation_id, created_at, user_id })
-       return res.status(200).json({
+        await UserConversation.create({ conversation_id, created_at, user_id })
+        return res.status(200).json({
             created: true
-       })
+        })
     }
     catch (err) { res.status(500).json("Something went wrong", err) }
 });
 
-app.get("/user-conversation", authentificateToken, async (req, res) => {
-    const conversation = await UserConversation.find({
-        user_id: req.user.id
+
+
+app.get("/user-conversation/:userId", authentificateToken, async (req, res) => {
+    const userId = req.params.userId
+
+    const conversations = await UserConversation.find({
+        user_id: userId !== "null" ? userId : req.user.id
     });
-    res.status(200).json(conversation);
+
+    const chats = await UserChat.find({
+        user_id: userId !== "null" ? userId : req.user.id
+    });
+    const groupedchats = conversations.map(function (conversation) {
+
+        const conversationChats = chats.filter(function (chat) {
+            return chat.conversation_id === conversation.conversation_id;
+        });
+
+        return {
+            ...conversation.toObject(),
+            chats: conversationChats
+        };
+    });
+
+    res.status(200).json(groupedchats);
 });
+
+app.get("/all-users-conversations", authentificateToken, async (req, res) => {
+    const conversations = await UserConversation.find({})
+    const chats = await UserChat.find({});
+    res.status(200).json(conversations, chats)
+})
+
+app.delete("/delete-single-conversation/:conversationId", authentificateToken, async (req, res) => {
+    const conversation_id = req.params.conversationId
+    res.status(200).json("conversation_id: " + conversation_id + " deleted")
+    await UserConversation.deleteOne({
+        conversation_id: conversation_id
+    })
+    await UserChat.deleteMany({
+        conversation_id: conversation_id
+    })
+})
+
+app.put("/user-payment", authentificateToken, async (req, res) => {
+    const userId = req.body.userId;
+    const payment = req.body.payment;
+    const createdAt = req.body.createdAt
+
+    await User.findOneAndUpdate(
+        { id: userId },
+        { $set: { payment: payment, createdAt:createdAt} },
+        // {$set:{createdAt:createdAt}}
+    )
+
+    res.status(200).json({ status: 'success' })
+})
+
+
+
+
 
 app.listen(PORT, () => {
     console.log("Am pornit server-ul")
 })
+

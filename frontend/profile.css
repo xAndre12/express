@@ -47,26 +47,57 @@ header {
 }
 
 .user-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
   margin-top: 80px;
   font-size: 20px;
   font-style: italic;
   width: 100%;
+  height: 700px;
+  overflow-y:scroll ;
+  scrollbar-width: none;
+  gap: 20px;
+}
+
+.conversation-wrapper{
+  border: 1px solid black;
+  border-radius: 20px;
+  padding: 20px 0px;
+  width: 40%;
+  background-color: rgb(240, 239, 194);
+  cursor: pointer;
+  margin: auto;
+  margin-top: 40px;
+  color: black;
+  padding-left: 40px;
+}
+
+.conversation-wrapper {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.user-info .conversation-wrapper {
+  width: 55%;
+  margin: 0;
+  margin-top: 40px;
+  margin-left: 200px;
+}
+
+.conversation-wrapper.active {
+  height: 500px;
+  overflow-y: auto;
+  padding-left: 0;
 }
 
 .user-content ul {
-  border: solid gray 2px;
   width: 100%;
   height: 600px;
-  margin: 0 30vw;
+  margin: auto;
+  padding: 40px 20vw;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-  padding: 28px;
   overflow: hidden;
   overflow-y: scroll;
   gap: 20px;
@@ -124,12 +155,14 @@ header {
 
 .user-info {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
   border-bottom: 1px solid white;
   padding-bottom: 20px;
 }
-
+.user-info p {
+  width: 50%;
+}
 .user-content ul .edit-wrapper {
   opacity: 70%;
   transition: opacity 0.2s;
@@ -140,6 +173,7 @@ header {
 }
 
 .buttons-wrapper {
+  width: 50%;
   display: flex;
   gap: 20px;
 }
@@ -156,7 +190,9 @@ header {
 .buttons-wrapper .edit {
   background-color: rgb(67, 119, 197);
 }
-
+.buttons-wrapper .show-conversations {
+  background-color: rgb(67, 197, 74);
+}
 .buttons-wrapper .delete {
   background-color: rgb(184, 52, 35);
 }
@@ -183,6 +219,7 @@ header {
   cursor: pointer;
   color: black;
   font-weight: 600;
+  display: none;
 }
 
 .new-user-wrapper {
@@ -196,6 +233,7 @@ header {
   flex-direction: column;
   align-items: center;
   gap: 20px;
+  margin: auto;
 }
 
 .new-user-wrapper p {
@@ -238,6 +276,26 @@ header {
   opacity: 1;
 }
 
+.pay-button-wrapper {
+  position: absolute;
+  right: 30px;
+  bottom: 30px;
+  background-color: white;
+  border-radius: 30px;
+  padding: 20px 40px;
+  display: none;
+  gap: 15px;
+  flex-direction: column;
+}
+.pay-button-wrapper button{
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  color: white;
+  background-color: blue;
+  font-size: 20px;
+  cursor: pointer;
+}
 .chat-wrapper {
   position: absolute;
   width: 60px;
@@ -251,6 +309,7 @@ header {
   background-size: 30px;
   background-position: center;
   background-repeat: no-repeat;
+  display: none;
 }
 
 .chat-wrapper:hover {
@@ -395,11 +454,12 @@ input::placeholder {
 .chat-transcript{
   background-color: rgb(194, 193, 193);
   border: black 2px solid;
-  border-radius: 0px 0px 20px 20px ;
+  border-radius: 20px ;
   height: 500px;
   width: 600px;
-  padding: 40px;
+  padding: 10px;
   overflow: auto;
+  margin: auto;
 }
 
 .chat-transcript {
@@ -459,4 +519,17 @@ input::placeholder {
     left: 0;
     bottom: -14px;
   }
+}
+
+.delete-single{
+  cursor: pointer;
+  margin-right: 20px;
+  padding: 10px 20px;
+  border-radius: 14px;
+  border: none;
+  color: white;
+  font-size: 18px;
+  background-color: rgb(184, 52, 35);
+  height: 50px;
+  margin-left: 30px;
 }
